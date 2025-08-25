@@ -1,0 +1,29 @@
+{
+    "name": "wearereform/suno-music-player-direct",
+    "description": "Plugin WordPress pour héberger et afficher vos créations musicales Suno",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "WeAreReForm",
+            "homepage": "https://github.com/WeAreReForm"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "composer/installers": "^1.0 || ^2.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0",
+        "wp-coding-standards/wpcs": "^2.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "SunoPlayer\\": "includes/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "phpcs": "phpcs --standard=WordPress ."
+    }
+}

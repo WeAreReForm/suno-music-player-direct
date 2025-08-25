@@ -1,0 +1,454 @@
+/**
+ * Suno Music Player Direct - Main Styles
+ * Version: 2.0
+ */
+
+/* Variables */
+:root {
+    --suno-primary: #6366f1;
+    --suno-primary-dark: #4f46e5;
+    --suno-secondary: #10b981;
+    --suno-danger: #ef4444;
+    --suno-dark: #1f2937;
+    --suno-light: #f3f4f6;
+    --suno-border: #e5e7eb;
+    --suno-radius: 8px;
+    --suno-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+/* Player Container */
+.suno-player-container {
+    max-width: 100%;
+    margin: 2rem 0;
+    background: white;
+    border-radius: var(--suno-radius);
+    box-shadow: var(--suno-shadow);
+    overflow: hidden;
+}
+
+/* Playlist Header */
+.suno-playlist-header {
+    background: linear-gradient(135deg, var(--suno-primary), var(--suno-primary-dark));
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.suno-playlist-header h2 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.suno-playlist-meta {
+    margin-top: 0.5rem;
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+/* Track List */
+.suno-tracks {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.suno-track {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--suno-border);
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+.suno-track:hover {
+    background: var(--suno-light);
+}
+
+.suno-track.active {
+    background: #eef2ff;
+    border-left: 3px solid var(--suno-primary);
+}
+
+.suno-track-number {
+    width: 30px;
+    color: #9ca3af;
+    font-size: 0.9rem;
+}
+
+.suno-track-info {
+    flex: 1;
+    margin: 0 1rem;
+}
+
+.suno-track-title {
+    font-weight: 600;
+    color: var(--suno-dark);
+    margin-bottom: 0.25rem;
+}
+
+.suno-track-artist {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.suno-track-duration {
+    color: #9ca3af;
+    font-size: 0.9rem;
+}
+
+.suno-track-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.suno-track-action {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.suno-track-action:hover {
+    background: var(--suno-light);
+    color: var(--suno-primary);
+}
+
+/* Player Controls */
+.suno-player-controls {
+    background: white;
+    border-top: 1px solid var(--suno-border);
+    padding: 1.5rem;
+}
+
+.suno-now-playing {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.suno-now-playing-image {
+    width: 60px;
+    height: 60px;
+    border-radius: 6px;
+    background: var(--suno-light);
+    margin-right: 1rem;
+}
+
+.suno-now-playing-info {
+    flex: 1;
+}
+
+.suno-now-playing-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.suno-now-playing-artist {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+/* Progress Bar */
+.suno-progress-container {
+    margin: 1rem 0;
+}
+
+.suno-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--suno-border);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+}
+
+.suno-progress-fill {
+    height: 100%;
+    background: var(--suno-primary);
+    border-radius: 2px;
+    position: relative;
+    transition: width 0.1s;
+}
+
+.suno-progress-handle {
+    position: absolute;
+    right: -8px;
+    top: -6px;
+    width: 16px;
+    height: 16px;
+    background: var(--suno-primary);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    cursor: grab;
+}
+
+.suno-progress-time {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+/* Control Buttons */
+.suno-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.suno-control-btn {
+    background: none;
+    border: none;
+    color: var(--suno-dark);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.suno-control-btn:hover {
+    background: var(--suno-light);
+    transform: scale(1.1);
+}
+
+.suno-control-btn.primary {
+    background: var(--suno-primary);
+    color: white;
+    width: 50px;
+    height: 50px;
+}
+
+.suno-control-btn.primary:hover {
+    background: var(--suno-primary-dark);
+}
+
+/* Volume Control */
+.suno-volume-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.suno-volume-slider {
+    width: 100px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--suno-border);
+    border-radius: 2px;
+    outline: none;
+}
+
+.suno-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--suno-primary);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.suno-volume-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--suno-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+/* Upload Form */
+.suno-upload-form {
+    background: white;
+    padding: 2rem;
+    border-radius: var(--suno-radius);
+    box-shadow: var(--suno-shadow);
+    margin: 2rem 0;
+}
+
+.suno-upload-dropzone {
+    border: 2px dashed var(--suno-border);
+    border-radius: var(--suno-radius);
+    padding: 3rem;
+    text-align: center;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.suno-upload-dropzone:hover,
+.suno-upload-dropzone.dragover {
+    border-color: var(--suno-primary);
+    background: #f0f9ff;
+}
+
+.suno-upload-icon {
+    font-size: 3rem;
+    color: var(--suno-primary);
+    margin-bottom: 1rem;
+}
+
+.suno-upload-text {
+    color: var(--suno-dark);
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.suno-upload-hint {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.suno-upload-input {
+    display: none;
+}
+
+/* Form Fields */
+.suno-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.suno-form-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--suno-dark);
+}
+
+.suno-form-input,
+.suno-form-textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--suno-border);
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.suno-form-input:focus,
+.suno-form-textarea:focus {
+    outline: none;
+    border-color: var(--suno-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.suno-form-textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Buttons */
+.suno-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.suno-btn-primary {
+    background: var(--suno-primary);
+    color: white;
+}
+
+.suno-btn-primary:hover {
+    background: var(--suno-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.suno-btn-secondary {
+    background: var(--suno-light);
+    color: var(--suno-dark);
+}
+
+.suno-btn-secondary:hover {
+    background: var(--suno-border);
+}
+
+/* Messages */
+.suno-message {
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.suno-message-success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.suno-message-error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.suno-message-info {
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
+}
+
+/* Loading Spinner */
+.suno-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--suno-border);
+    border-top-color: var(--suno-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .suno-playlist-header {
+        padding: 1.5rem;
+    }
+    
+    .suno-playlist-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .suno-track {
+        padding: 0.75rem 1rem;
+    }
+    
+    .suno-track-number {
+        display: none;
+    }
+    
+    .suno-volume-control {
+        display: none;
+    }
+    
+    .suno-upload-dropzone {
+        padding: 2rem;
+    }
+}

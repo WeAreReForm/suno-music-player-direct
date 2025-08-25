@@ -1,191 +1,183 @@
 <?php
 /**
  * Gestion de la base de données
- *
- * @package SunoMusicPlayerDirect
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class Suno_Database {
+class SunoDatabase {
     
     /**
-     * Crée les tables nécessaires
+     * Créer les tables
      */
     public static function create_tables() {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'suno_tracks';
         $charset_collate = $wpdb->get_charset_collate();
         
-        $sql = "CREATE TABLE $table_name (
+        // Table des pistes audio
+        $table_tracks = $wpdb->prefix . 'suno_tracks';
+        
+        $sql_tracks = "CREATE TABLE $table_tracks (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             title varchar(255) NOT NULL,
             artist varchar(255) DEFAULT '',
             album varchar(255) DEFAULT '',
             genre varchar(100) DEFAULT '',
-            description text,
-            file_path varchar(500) NOT NULL,
             file_url varchar(500) NOT NULL,
-            cover_url varchar(500) DEFAULT '',
+            file_path varchar(500) NOT NULL,
+            thumbnail_url varchar(500) DEFAULT '',
             duration int DEFAULT 0,
-            plays int DEFAULT 0,
-            downloads int DEFAULT 0,
+            play_count int DEFAULT 0,
+            download_count int DEFAULT 0,
             user_id bigint(20) DEFAULT 0,
-            status varchar(20) DEFAULT 'published',
+            suno_id varchar(100) DEFAULT '',
+            description text DEFAULT '',
+            tags text DEFAULT '',
+            metadata longtext DEFAULT '',
+            status varchar(20) DEFAULT 'public',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY user_id (user_id),
             KEY status (status),
-            KEY genre (genre)
-        ) $charset_collate;";
-        
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-        
-        // Table des statistiques
-        $stats_table = $wpdb->prefix . 'suno_stats';
-        
-        $sql_stats = "CREATE TABLE $stats_table (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            track_id mediumint(9) NOT NULL,
-            user_id bigint(20) DEFAULT 0,
-            action varchar(20) NOT NULL,
-            ip_address varchar(45) DEFAULT '',
-            user_agent text,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY track_id (track_id),
-            KEY action (action),
             KEY created_at (created_at)
         ) $charset_collate;";
         
+        // Table des playlists
+        $table_playlists = $wpdb->prefix . 'suno_playlists';
+        
+        $sql_playlists = "CREATE TABLE $table_playlists (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            name varchar(255) NOT NULL,
+            description text DEFAULT '',
+            user_id bigint(20) DEFAULT 0,
+            tracks text DEFAULT '',
+            thumbnail_url varchar(500) DEFAULT '',
+            visibility varchar(20) DEFAULT 'public',
+            play_count int DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY user_id (user_id),
+            KEY visibility (visibility)
+        ) $charset_collate;";
+        
+        // Table des statistiques
+        $table_stats = $wpdb->prefix . 'suno_stats';
+        
+        $sql_stats = "CREATE TABLE $table_stats (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            track_id mediumint(9) NOT NULL,
+            event_type varchar(20) NOT NULL,
+            user_id bigint(20) DEFAULT 0,
+            ip_address varchar(45) DEFAULT '',
+            user_agent text DEFAULT '',
+            referrer varchar(500) DEFAULT '',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY track_id (track_id),
+            KEY event_type (event_type),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        
+        dbDelta($sql_tracks);
+        dbDelta($sql_playlists);
         dbDelta($sql_stats);
+        
+        // Ajouter la version de la DB
+        update_option('suno_player_db_version', '2.0');
     }
     
     /**
-     * Récupère toutes les pistes
+     * Obtenir toutes les pistes
      */
     public static function get_tracks($args = array()) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
         
         $defaults = array(
-            'limit' => 20,
-            'offset' => 0,
+            'user_id' => null,
+            'status' => 'public',
             'orderby' => 'created_at',
             'order' => 'DESC',
-            'status' => 'published',
-            'user_id' => 0,
-            'genre' => ''
+            'limit' => 20,
+            'offset' => 0
         );
         
         $args = wp_parse_args($args, $defaults);
         
-        $where = array("status = %s");
-        $values = array($args['status']);
+        $table = $wpdb->prefix . 'suno_tracks';
+        $where = array();
         
-        if ($args['user_id'] > 0) {
-            $where[] = "user_id = %d";
-            $values[] = $args['user_id'];
+        if ($args['user_id']) {
+            $where[] = $wpdb->prepare('user_id = %d', $args['user_id']);
         }
         
-        if (!empty($args['genre'])) {
-            $where[] = "genre = %s";
-            $values[] = $args['genre'];
+        if ($args['status']) {
+            $where[] = $wpdb->prepare('status = %s', $args['status']);
         }
         
-        $where_clause = 'WHERE ' . implode(' AND ', $where);
-        
-        $values[] = $args['limit'];
-        $values[] = $args['offset'];
+        $where_clause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
         
         $query = $wpdb->prepare(
-            "SELECT * FROM $table_name 
+            "SELECT * FROM $table 
             $where_clause 
             ORDER BY {$args['orderby']} {$args['order']} 
             LIMIT %d OFFSET %d",
-            $values
+            $args['limit'],
+            $args['offset']
         );
         
         return $wpdb->get_results($query);
     }
     
     /**
-     * Récupère une piste par ID
-     */
-    public static function get_track($track_id) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
-        
-        return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $table_name WHERE id = %d",
-            $track_id
-        ));
-    }
-    
-    /**
-     * Insère une nouvelle piste
+     * Insérer une piste
      */
     public static function insert_track($data) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
         
-        $result = $wpdb->insert($table_name, $data);
+        $table = $wpdb->prefix . 'suno_tracks';
         
-        if ($result === false) {
-            return false;
-        }
-        
-        return $wpdb->insert_id;
+        return $wpdb->insert($table, $data);
     }
     
     /**
-     * Met à jour une piste
+     * Mettre à jour une piste
      */
-    public static function update_track($track_id, $data) {
+    public static function update_track($id, $data) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
         
-        return $wpdb->update(
-            $table_name,
-            $data,
-            array('id' => $track_id)
-        );
+        $table = $wpdb->prefix . 'suno_tracks';
+        
+        return $wpdb->update($table, $data, array('id' => $id));
     }
     
     /**
-     * Supprime une piste
+     * Supprimer une piste
      */
-    public static function delete_track($track_id) {
+    public static function delete_track($id) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
         
-        // Récupérer les infos pour supprimer le fichier
-        $track = self::get_track($track_id);
+        $table = $wpdb->prefix . 'suno_tracks';
         
-        if ($track && file_exists($track->file_path)) {
-            unlink($track->file_path);
-        }
-        
-        return $wpdb->delete(
-            $table_name,
-            array('id' => $track_id)
-        );
+        return $wpdb->delete($table, array('id' => $id));
     }
     
     /**
-     * Incrémente le compteur de lectures
+     * Incrémenter le compteur de lecture
      */
-    public static function increment_plays($track_id) {
+    public static function increment_play_count($track_id) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
+        
+        $table = $wpdb->prefix . 'suno_tracks';
         
         $wpdb->query($wpdb->prepare(
-            "UPDATE $table_name SET plays = plays + 1 WHERE id = %d",
+            "UPDATE $table SET play_count = play_count + 1 WHERE id = %d",
             $track_id
         ));
         
@@ -194,54 +186,22 @@ class Suno_Database {
     }
     
     /**
-     * Incrémente le compteur de téléchargements
+     * Enregistrer une statistique
      */
-    public static function increment_downloads($track_id) {
+    public static function log_stat($track_id, $event_type) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
         
-        $wpdb->query($wpdb->prepare(
-            "UPDATE $table_name SET downloads = downloads + 1 WHERE id = %d",
-            $track_id
-        ));
+        $table = $wpdb->prefix . 'suno_stats';
         
-        // Enregistrer dans les stats
-        self::log_stat($track_id, 'download');
-    }
-    
-    /**
-     * Enregistre une statistique
-     */
-    private static function log_stat($track_id, $action) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_stats';
-        
-        $wpdb->insert($table_name, array(
+        $data = array(
             'track_id' => $track_id,
+            'event_type' => $event_type,
             'user_id' => get_current_user_id(),
-            'action' => $action,
-            'ip_address' => $_SERVER['REMOTE_ADDR'],
-            'user_agent' => $_SERVER['HTTP_USER_AGENT']
-        ));
-    }
-    
-    /**
-     * Récupère les statistiques d'une piste
-     */
-    public static function get_track_stats($track_id, $days = 30) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_stats';
+            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'referrer' => $_SERVER['HTTP_REFERER'] ?? ''
+        );
         
-        $date_limit = date('Y-m-d', strtotime("-$days days"));
-        
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT DATE(created_at) as date, action, COUNT(*) as count 
-            FROM $table_name 
-            WHERE track_id = %d AND created_at >= %s 
-            GROUP BY DATE(created_at), action 
-            ORDER BY date DESC",
-            $track_id,
-            $date_limit
-        ));
+        $wpdb->insert($table, $data);
     }
 }

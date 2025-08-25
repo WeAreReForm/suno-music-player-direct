@@ -1,21 +1,13 @@
 <?php
 /**
  * Gestion des shortcodes
- *
- * @package SunoMusicPlayerDirect
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class Suno_Shortcodes {
-    
-    private $upload_url;
-    
-    public function __construct($upload_url) {
-        $this->upload_url = $upload_url;
-    }
+class SunoShortcodes {
     
     /**
      * Shortcode [suno_playlist]
@@ -24,24 +16,52 @@ class Suno_Shortcodes {
         $atts = shortcode_atts(array(
             'title' => 'Ma Playlist Suno',
             'limit' => 20,
-            'user_id' => 0,
-            'genre' => '',
-            'show_upload' => false,
-            'show_download' => true
+            'user_id' => null,
+            'show_upload' => true,
+            'show_download' => true,
+            'autoplay' => false,
+            'theme' => 'dark'
         ), $atts);
         
         // Récupérer les pistes
-        $tracks = Suno_Database::get_tracks(array(
-            'limit' => intval($atts['limit']),
-            'user_id' => intval($atts['user_id']),
-            'genre' => sanitize_text_field($atts['genre'])
+        $tracks = SunoDatabase::get_tracks(array(
+            'user_id' => $atts['user_id'],
+            'limit' => $atts['limit']
         ));
-        
-        // Générer un ID unique pour cette playlist
-        $playlist_id = 'suno-playlist-' . wp_rand(1000, 9999);
         
         ob_start();
         include SUNO_PLAYER_PATH . 'templates/playlist.php';
+        return ob_get_clean();
+    }
+    
+    /**
+     * Shortcode [suno_player]
+     */
+    public function render_player($atts) {
+        $atts = shortcode_atts(array(
+            'id' => 0,
+            'autoplay' => false,
+            'loop' => false,
+            'theme' => 'dark'
+        ), $atts);
+        
+        if (!$atts['id']) {
+            return '<p>ID de piste manquant</p>';
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'suno_tracks';
+        $track = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE id = %d",
+            $atts['id']
+        ));
+        
+        if (!$track) {
+            return '<p>Piste non trouvée</p>';
+        }
+        
+        ob_start();
+        include SUNO_PLAYER_PATH . 'templates/single-player.php';
         return ob_get_clean();
     }
     
@@ -50,12 +70,17 @@ class Suno_Shortcodes {
      */
     public function render_upload_form($atts) {
         if (!is_user_logged_in()) {
-            return '<div class="suno-notice">Vous devez être connecté pour uploader des chansons.</div>';
+            return '<p>Vous devez être connecté pour uploader des pistes.</p>';
+        }
+        
+        if (!current_user_can('upload_suno_tracks')) {
+            return '<p>Vous n\'avez pas la permission d\'uploader des pistes.</p>';
         }
         
         $atts = shortcode_atts(array(
             'redirect' => '',
-            'categories' => true
+            'max_size' => 100,
+            'allowed_types' => 'mp3,m4a,ogg,wav'
         ), $atts);
         
         ob_start();
@@ -64,34 +89,63 @@ class Suno_Shortcodes {
     }
     
     /**
-     * Shortcode [suno_player] pour un player unique
+     * Shortcode [suno_gallery]
      */
-    public function render_single_player($atts) {
+    public function render_gallery($atts) {
         $atts = shortcode_atts(array(
-            'id' => 0,
-            'url' => '',
-            'title' => '',
-            'artist' => '',
-            'autoplay' => false,
-            'loop' => false
+            'columns' => 3,
+            'limit' => 12,
+            'user_id' => null,
+            'show_title' => true,
+            'show_artist' => true,
+            'show_play_count' => true,
+            'orderby' => 'created_at',
+            'order' => 'DESC'
         ), $atts);
         
-        if ($atts['id']) {
-            $track = Suno_Database::get_track($atts['id']);
-            if (!$track) {
-                return '<div class="suno-notice">Piste introuvable.</div>';
-            }
-            $atts['url'] = $track->file_url;
-            $atts['title'] = $track->title;
-            $atts['artist'] = $track->artist;
-        }
-        
-        if (empty($atts['url'])) {
-            return '<div class="suno-notice">URL du fichier audio requise.</div>';
-        }
+        $tracks = SunoDatabase::get_tracks(array(
+            'user_id' => $atts['user_id'],
+            'limit' => $atts['limit'],
+            'orderby' => $atts['orderby'],
+            'order' => $atts['order']
+        ));
         
         ob_start();
-        include SUNO_PLAYER_PATH . 'templates/single-player.php';
+        ?>
+        <div class="suno-gallery" data-columns="<?php echo esc_attr($atts['columns']); ?>">
+            <?php foreach ($tracks as $track): ?>
+            <div class="suno-gallery-item">
+                <?php if ($track->thumbnail_url): ?>
+                <div class="suno-gallery-thumbnail">
+                    <img src="<?php echo esc_url($track->thumbnail_url); ?>" alt="<?php echo esc_attr($track->title); ?>">
+                    <div class="suno-gallery-overlay">
+                        <button class="suno-play-btn" data-track-id="<?php echo $track->id; ?>">
+                            <span class="dashicons dashicons-controls-play"></span>
+                        </button>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <div class="suno-gallery-info">
+                    <?php if ($atts['show_title']): ?>
+                    <h4><?php echo esc_html($track->title); ?></h4>
+                    <?php endif; ?>
+                    
+                    <?php if ($atts['show_artist'] && $track->artist): ?>
+                    <p class="suno-artist"><?php echo esc_html($track->artist); ?></p>
+                    <?php endif; ?>
+                    
+                    <?php if ($atts['show_play_count']): ?>
+                    <p class="suno-play-count">
+                        <span class="dashicons dashicons-controls-play"></span>
+                        <?php echo number_format($track->play_count); ?>
+                    </p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php
         return ob_get_clean();
     }
 }

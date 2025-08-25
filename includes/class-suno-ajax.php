@@ -1,153 +1,138 @@
 <?php
 /**
- * Gestion des requêtes AJAX
- *
- * @package SunoMusicPlayerDirect
+ * Gestionnaire AJAX
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class Suno_Ajax {
+class SunoAjax {
     
-    public function __construct() {
-        // Upload
-        add_action('wp_ajax_suno_upload_track', array($this, 'handle_upload'));
-        add_action('wp_ajax_nopriv_suno_upload_track', array($this, 'handle_upload_public'));
+    /**
+     * Gérer l'upload de piste
+     */
+    public function handle_track_upload() {
+        check_ajax_referer('suno_upload_nonce', 'nonce');
         
-        // Statistiques
-        add_action('wp_ajax_suno_track_play', array($this, 'track_play'));
-        add_action('wp_ajax_nopriv_suno_track_play', array($this, 'track_play'));
+        if (!is_user_logged_in() || !current_user_can('upload_suno_tracks')) {
+            wp_send_json_error('Permission refusée');
+        }
         
-        add_action('wp_ajax_suno_track_download', array($this, 'track_download'));
-        add_action('wp_ajax_nopriv_suno_track_download', array($this, 'track_download'));
+        require_once SUNO_PLAYER_PATH . 'includes/class-suno-upload.php';
+        $uploader = new SunoUpload();
         
-        // Playlist
-        add_action('wp_ajax_suno_get_playlist', array($this, 'get_playlist'));
-        add_action('wp_ajax_nopriv_suno_get_playlist', array($this, 'get_playlist'));
+        $result = $uploader->handle_upload($_FILES['audio_file'] ?? null);
+        
+        if ($result['success']) {
+            // Enregistrer en base de données
+            $track_data = array(
+                'title' => sanitize_text_field($_POST['title'] ?? 'Sans titre'),
+                'artist' => sanitize_text_field($_POST['artist'] ?? ''),
+                'album' => sanitize_text_field($_POST['album'] ?? ''),
+                'genre' => sanitize_text_field($_POST['genre'] ?? ''),
+                'description' => sanitize_textarea_field($_POST['description'] ?? ''),
+                'file_url' => $result['url'],
+                'file_path' => $result['path'],
+                'user_id' => get_current_user_id(),
+                'status' => 'public'
+            );
+            
+            if (SunoDatabase::insert_track($track_data)) {
+                wp_send_json_success(array(
+                    'message' => 'Piste uploadée avec succès',
+                    'track' => $track_data
+                ));
+            } else {
+                wp_send_json_error('Erreur lors de l\'enregistrement en base de données');
+            }
+        } else {
+            wp_send_json_error($result['message']);
+        }
     }
     
     /**
-     * Gère l'upload d'une piste
+     * Gérer la suppression de piste
      */
-    public function handle_upload() {
-        check_ajax_referer('suno_upload', 'nonce');
+    public function handle_track_delete() {
+        check_ajax_referer('suno_admin_nonce', 'nonce');
         
-        if (!is_user_logged_in()) {
-            wp_send_json_error('Vous devez être connecté.');
+        if (!current_user_can('delete_suno_tracks')) {
+            wp_send_json_error('Permission refusée');
         }
         
-        if (!isset($_FILES['audio_file'])) {
-            wp_send_json_error('Aucun fichier audio fourni.');
-        }
-        
-        $settings = get_option('suno_player_settings');
-        $audio_file = $_FILES['audio_file'];
-        
-        // Vérifier la taille
-        $max_size = $settings['max_file_size'] * 1024 * 1024;
-        if ($audio_file['size'] > $max_size) {
-            wp_send_json_error('Fichier trop volumineux. Maximum : ' . $settings['max_file_size'] . ' MB');
-        }
-        
-        // Vérifier le type MIME
-        $allowed_types = array('audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/x-wav');
-        if (!in_array($audio_file['type'], $allowed_types)) {
-            wp_send_json_error('Type de fichier non autorisé.');
-        }
-        
-        // Upload du fichier
-        $upload = wp_handle_upload($audio_file, array('test_form' => false));
-        
-        if (isset($upload['error'])) {
-            wp_send_json_error($upload['error']);
-        }
-        
-        // Traiter l'image de couverture
-        $cover_url = '';
-        if (isset($_FILES['cover_image']) && $_FILES['cover_image']['error'] === 0) {
-            $cover_upload = wp_handle_upload($_FILES['cover_image'], array('test_form' => false));
-            if (!isset($cover_upload['error'])) {
-                $cover_url = $cover_upload['url'];
-            }
-        }
-        
-        // Sauvegarder en base de données
-        $track_id = Suno_Database::insert_track(array(
-            'title' => sanitize_text_field($_POST['title']),
-            'artist' => sanitize_text_field($_POST['artist'] ?: 'Créé avec Suno AI'),
-            'album' => sanitize_text_field($_POST['album']),
-            'genre' => sanitize_text_field($_POST['genre']),
-            'description' => sanitize_textarea_field($_POST['description']),
-            'file_path' => $upload['file'],
-            'file_url' => $upload['url'],
-            'cover_url' => $cover_url,
-            'user_id' => get_current_user_id(),
-            'status' => 'published'
-        ));
+        $track_id = intval($_POST['track_id'] ?? 0);
         
         if (!$track_id) {
-            wp_send_json_error('Erreur lors de la sauvegarde.');
+            wp_send_json_error('ID de piste invalide');
         }
         
-        wp_send_json_success(array(
-            'message' => 'Chanson uploadée avec succès !',
-            'track_id' => $track_id,
-            'file_url' => $upload['url']
+        // Récupérer la piste pour supprimer le fichier
+        global $wpdb;
+        $table = $wpdb->prefix . 'suno_tracks';
+        $track = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE id = %d",
+            $track_id
         ));
-    }
-    
-    /**
-     * Upload public (si autorisé)
-     */
-    public function handle_upload_public() {
-        wp_send_json_error('Upload public non autorisé. Veuillez vous connecter.');
-    }
-    
-    /**
-     * Enregistre une lecture
-     */
-    public function track_play() {
-        $track_id = intval($_POST['track_id']);
         
-        if ($track_id > 0) {
-            Suno_Database::increment_plays($track_id);
-            wp_send_json_success();
+        if ($track) {
+            // Supprimer le fichier physique
+            if (file_exists($track->file_path)) {
+                unlink($track->file_path);
+            }
+            
+            // Supprimer de la base de données
+            if (SunoDatabase::delete_track($track_id)) {
+                wp_send_json_success('Piste supprimée');
+            } else {
+                wp_send_json_error('Erreur lors de la suppression');
+            }
+        } else {
+            wp_send_json_error('Piste introuvable');
+        }
+    }
+    
+    /**
+     * Obtenir les données de playlist
+     */
+    public function get_playlist_data() {
+        $playlist_id = intval($_POST['playlist_id'] ?? 0);
+        $user_id = intval($_POST['user_id'] ?? null);
+        
+        $tracks = SunoDatabase::get_tracks(array(
+            'user_id' => $user_id,
+            'limit' => 50
+        ));
+        
+        $playlist_data = array();
+        
+        foreach ($tracks as $track) {
+            $playlist_data[] = array(
+                'id' => $track->id,
+                'title' => $track->title,
+                'artist' => $track->artist,
+                'album' => $track->album,
+                'url' => $track->file_url,
+                'thumbnail' => $track->thumbnail_url,
+                'duration' => $track->duration
+            );
         }
         
-        wp_send_json_error();
+        wp_send_json_success($playlist_data);
     }
     
     /**
-     * Enregistre un téléchargement
+     * Mettre à jour le compteur de lecture
      */
-    public function track_download() {
-        $track_id = intval($_POST['track_id']);
+    public function update_play_count() {
+        $track_id = intval($_POST['track_id'] ?? 0);
         
-        if ($track_id > 0) {
-            Suno_Database::increment_downloads($track_id);
-            wp_send_json_success();
+        if (!$track_id) {
+            wp_send_json_error('ID de piste invalide');
         }
         
-        wp_send_json_error();
-    }
-    
-    /**
-     * Récupère une playlist en JSON
-     */
-    public function get_playlist() {
-        $args = array(
-            'limit' => intval($_POST['limit'] ?? 20),
-            'offset' => intval($_POST['offset'] ?? 0),
-            'genre' => sanitize_text_field($_POST['genre'] ?? ''),
-            'user_id' => intval($_POST['user_id'] ?? 0)
-        );
+        SunoDatabase::increment_play_count($track_id);
         
-        $tracks = Suno_Database::get_tracks($args);
-        
-        wp_send_json_success($tracks);
+        wp_send_json_success('Compteur mis à jour');
     }
 }
-
-new Suno_Ajax();

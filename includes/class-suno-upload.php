@@ -1,142 +1,161 @@
 <?php
 /**
- * Upload handler for Suno Music Player Direct
+ * Gestionnaire d'upload
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class SunoUploadHandler {
+class SunoUpload {
     
-    private $allowed_types = array('audio/mpeg', 'audio/mp3', 'audio/wav');
-    private $max_file_size = 52428800; // 50MB
+    private $allowed_types = array('mp3', 'm4a', 'ogg', 'wav', 'aac');
+    private $max_file_size = 104857600; // 100 MB
     
-    public function __construct() {
-        add_action('wp_ajax_suno_upload_track', array($this, 'handle_ajax_upload'));
-        add_action('wp_ajax_nopriv_suno_upload_track', array($this, 'handle_ajax_upload'));
+    /**
+     * Gérer l'upload d'un fichier
+     */
+    public function handle_upload($file) {
+        if (!$file || !isset($file['tmp_name'])) {
+            return array(
+                'success' => false,
+                'message' => 'Aucun fichier reçu'
+            );
+        }
+        
+        // Vérifier les erreurs d'upload
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            return array(
+                'success' => false,
+                'message' => $this->get_upload_error_message($file['error'])
+            );
+        }
+        
+        // Vérifier la taille
+        if ($file['size'] > $this->max_file_size) {
+            return array(
+                'success' => false,
+                'message' => 'Le fichier est trop volumineux (max 100 MB)'
+            );
+        }
+        
+        // Vérifier l'extension
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, $this->allowed_types)) {
+            return array(
+                'success' => false,
+                'message' => 'Type de fichier non autorisé. Formats acceptés : ' . implode(', ', $this->allowed_types)
+            );
+        }
+        
+        // Vérifier le type MIME
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime_type = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        
+        $allowed_mimes = array(
+            'audio/mpeg',
+            'audio/mp3',
+            'audio/mp4',
+            'audio/m4a',
+            'audio/ogg',
+            'audio/wav',
+            'audio/x-wav',
+            'audio/aac'
+        );
+        
+        if (!in_array($mime_type, $allowed_mimes)) {
+            return array(
+                'success' => false,
+                'message' => 'Type MIME invalide : ' . $mime_type
+            );
+        }
+        
+        // Créer le dossier de destination
+        $upload_dir = wp_upload_dir();
+        $suno_dir = $upload_dir['basedir'] . '/suno-music';
+        $year_month = date('Y/m');
+        $target_dir = $suno_dir . '/' . $year_month;
+        
+        if (!file_exists($target_dir)) {
+            wp_mkdir_p($target_dir);
+        }
+        
+        // Générer un nom unique
+        $filename = uniqid('suno_') . '_' . sanitize_file_name($file['name']);
+        $target_path = $target_dir . '/' . $filename;
+        $target_url = $upload_dir['baseurl'] . '/suno-music/' . $year_month . '/' . $filename;
+        
+        // Déplacer le fichier
+        if (!move_uploaded_file($file['tmp_name'], $target_path)) {
+            return array(
+                'success' => false,
+                'message' => 'Erreur lors du déplacement du fichier'
+            );
+        }
+        
+        // Obtenir les métadonnées audio
+        $metadata = $this->get_audio_metadata($target_path);
+        
+        return array(
+            'success' => true,
+            'path' => $target_path,
+            'url' => $target_url,
+            'filename' => $filename,
+            'metadata' => $metadata
+        );
     }
     
     /**
-     * Handle AJAX upload
+     * Obtenir les métadonnées d'un fichier audio
      */
-    public function handle_ajax_upload() {
-        // Check nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'suno_player_nonce')) {
-            wp_send_json_error('Security check failed');
-        }
+    private function get_audio_metadata($file_path) {
+        $metadata = array(
+            'duration' => 0,
+            'bitrate' => 0,
+            'sample_rate' => 0
+        );
         
-        // Check if public upload is allowed
-        $settings = get_option('suno_player_settings', array());
-        if (!is_user_logged_in() && empty($settings['public_upload'])) {
-            wp_send_json_error('Upload public non autorisé');
-        }
-        
-        // Check file
-        if (!isset($_FILES['file'])) {
-            wp_send_json_error('Aucun fichier reçu');
-        }
-        
-        $file = $_FILES['file'];
-        
-        // Validate file type
-        if (!in_array($file['type'], $this->allowed_types)) {
-            wp_send_json_error('Type de fichier non autorisé. Utilisez MP3 ou WAV.');
-        }
-        
-        // Validate file size
-        $max_size = isset($settings['max_file_size']) ? $settings['max_file_size'] * 1048576 : $this->max_file_size;
-        if ($file['size'] > $max_size) {
-            wp_send_json_error('Fichier trop volumineux. Maximum : ' . ($max_size / 1048576) . 'MB');
-        }
-        
-        // Handle upload
-        $upload = wp_handle_upload($file, array('test_form' => false));
-        
-        if (isset($upload['error'])) {
-            wp_send_json_error($upload['error']);
-        }
-        
-        // Get metadata
-        $title = !empty($_POST['title']) ? sanitize_text_field($_POST['title']) : pathinfo($file['name'], PATHINFO_FILENAME);
-        $artist = !empty($_POST['artist']) ? sanitize_text_field($_POST['artist']) : 'Unknown Artist';
-        $description = !empty($_POST['description']) ? sanitize_textarea_field($_POST['description']) : '';
-        
-        // Get duration (simplified)
-        $duration = $this->get_audio_duration($upload['file']);
-        
-        // Save to database
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'suno_tracks';
-        
-        $result = $wpdb->insert($table_name, array(
-            'title' => $title,
-            'artist' => $artist,
-            'description' => $description,
-            'file_url' => $upload['url'],
-            'file_path' => $upload['file'],
-            'file_size' => $file['size'],
-            'file_type' => $file['type'],
-            'duration' => $duration,
-            'user_id' => get_current_user_id(),
-            'allow_download' => 1,
-            'created_at' => current_time('mysql')
-        ));
-        
-        if ($result === false) {
-            // Delete uploaded file on database error
-            if (file_exists($upload['file'])) {
-                unlink($upload['file']);
-            }
-            wp_send_json_error('Erreur lors de l\'enregistrement en base de données');
-        }
-        
-        wp_send_json_success(array(
-            'id' => $wpdb->insert_id,
-            'title' => $title,
-            'artist' => $artist,
-            'url' => $upload['url'],
-            'duration' => $duration
-        ));
-    }
-    
-    /**
-     * Get audio duration (simplified version)
-     */
-    private function get_audio_duration($file_path) {
-        // In a production environment, you would use getID3 library
-        // For now, return a default value
+        // Utiliser getID3 si disponible
         if (class_exists('getID3')) {
             $getID3 = new getID3();
-            $file_info = $getID3->analyze($file_path);
-            if (isset($file_info['playtime_seconds'])) {
-                return round($file_info['playtime_seconds']);
+            $info = $getID3->analyze($file_path);
+            
+            if (isset($info['playtime_seconds'])) {
+                $metadata['duration'] = round($info['playtime_seconds']);
+            }
+            if (isset($info['bitrate'])) {
+                $metadata['bitrate'] = $info['bitrate'];
+            }
+            if (isset($info['audio']['sample_rate'])) {
+                $metadata['sample_rate'] = $info['audio']['sample_rate'];
             }
         }
         
-        return 180; // Default 3 minutes
+        return $metadata;
     }
     
     /**
-     * Clean filename
+     * Obtenir le message d'erreur d'upload
      */
-    private function clean_filename($filename) {
-        $filename = sanitize_file_name($filename);
-        $filename = preg_replace('/[^a-zA-Z0-9._-]/', '', $filename);
-        return $filename;
-    }
-    
-    /**
-     * Generate unique filename
-     */
-    private function generate_unique_filename($filename) {
-        $info = pathinfo($filename);
-        $ext = !empty($info['extension']) ? '.' . $info['extension'] : '';
-        $name = basename($filename, $ext);
-        
-        return $name . '_' . uniqid() . $ext;
+    private function get_upload_error_message($error_code) {
+        switch ($error_code) {
+            case UPLOAD_ERR_INI_SIZE:
+                return 'Le fichier dépasse la limite de upload_max_filesize';
+            case UPLOAD_ERR_FORM_SIZE:
+                return 'Le fichier dépasse la limite MAX_FILE_SIZE';
+            case UPLOAD_ERR_PARTIAL:
+                return 'Le fichier n\'a été que partiellement téléchargé';
+            case UPLOAD_ERR_NO_FILE:
+                return 'Aucun fichier n\'a été téléchargé';
+            case UPLOAD_ERR_NO_TMP_DIR:
+                return 'Dossier temporaire manquant';
+            case UPLOAD_ERR_CANT_WRITE:
+                return 'Échec de l\'écriture du fichier sur le disque';
+            case UPLOAD_ERR_EXTENSION:
+                return 'Une extension PHP a arrêté l\'upload';
+            default:
+                return 'Erreur inconnue lors de l\'upload';
+        }
     }
 }
-
-// Initialize upload handler
-new SunoUploadHandler();

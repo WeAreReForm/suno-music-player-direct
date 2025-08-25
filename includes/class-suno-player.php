@@ -12,95 +12,91 @@ if (!defined('ABSPATH')) {
 
 class SunoMusicPlayerDirect {
     
-    private $upload_dir;
-    private $upload_url;
-    private $version;
-    
-    public function __construct() {
-        $this->version = SUNO_PLAYER_VERSION;
-        $this->setup_upload_directories();
-    }
+    /**
+     * Instance unique du plugin
+     */
+    private static $instance = null;
     
     /**
-     * Initialise le plugin
+     * Loader pour gérer les hooks
      */
-    public function run() {
+    protected $loader;
+    
+    /**
+     * Version du plugin
+     */
+    protected $version;
+    
+    /**
+     * Constructeur
+     */
+    public function __construct() {
+        $this->version = SUNO_PLAYER_VERSION;
         $this->load_dependencies();
         $this->define_admin_hooks();
         $this->define_public_hooks();
-        $this->register_shortcodes();
     }
     
     /**
-     * Configure les répertoires d'upload
-     */
-    private function setup_upload_directories() {
-        $upload = wp_upload_dir();
-        $this->upload_dir = $upload['basedir'] . '/suno-music';
-        $this->upload_url = $upload['baseurl'] . '/suno-music';
-        
-        if (!file_exists($this->upload_dir)) {
-            wp_mkdir_p($this->upload_dir);
-            $this->create_htaccess();
-        }
-    }
-    
-    /**
-     * Crée le fichier .htaccess pour sécuriser le dossier
-     */
-    private function create_htaccess() {
-        $htaccess = $this->upload_dir . '/.htaccess';
-        if (!file_exists($htaccess)) {
-            $content = "Options -Indexes\n";
-            $content .= "<FilesMatch '\.(mp3|ogg|wav)$'>\n";
-            $content .= "Order Allow,Deny\n";
-            $content .= "Allow from all\n";
-            $content .= "</FilesMatch>\n";
-            file_put_contents($htaccess, $content);
-        }
-    }
-    
-    /**
-     * Charge les dépendances
+     * Charger les dépendances
      */
     private function load_dependencies() {
+        require_once SUNO_PLAYER_PATH . 'includes/class-suno-loader.php';
         require_once SUNO_PLAYER_PATH . 'includes/class-suno-database.php';
         require_once SUNO_PLAYER_PATH . 'includes/class-suno-admin.php';
         require_once SUNO_PLAYER_PATH . 'includes/class-suno-public.php';
-        require_once SUNO_PLAYER_PATH . 'includes/class-suno-ajax.php';
         require_once SUNO_PLAYER_PATH . 'includes/class-suno-shortcodes.php';
+        require_once SUNO_PLAYER_PATH . 'includes/class-suno-ajax.php';
+        require_once SUNO_PLAYER_PATH . 'includes/class-suno-upload.php';
+        
+        $this->loader = new SunoLoader();
     }
     
     /**
-     * Enregistre les hooks admin
+     * Définir les hooks admin
      */
     private function define_admin_hooks() {
-        $admin = new Suno_Admin($this->version);
+        $plugin_admin = new SunoAdmin($this->version);
         
-        add_action('admin_menu', array($admin, 'add_admin_menu'));
-        add_action('admin_enqueue_scripts', array($admin, 'enqueue_admin_scripts'));
-        add_action('admin_init', array($admin, 'register_settings'));
+        $this->loader->add_action('admin_enqueue_scripts', $plugin_admin, 'enqueue_styles');
+        $this->loader->add_action('admin_enqueue_scripts', $plugin_admin, 'enqueue_scripts');
+        $this->loader->add_action('admin_menu', $plugin_admin, 'add_plugin_admin_menu');
+        $this->loader->add_action('admin_init', $plugin_admin, 'register_settings');
     }
     
     /**
-     * Enregistre les hooks publics
+     * Définir les hooks publics
      */
     private function define_public_hooks() {
-        $public = new Suno_Public($this->version);
+        $plugin_public = new SunoPublic($this->version);
+        $plugin_shortcodes = new SunoShortcodes();
+        $plugin_ajax = new SunoAjax();
         
-        add_action('wp_enqueue_scripts', array($public, 'enqueue_scripts'));
-        add_action('init', array($public, 'init'));
+        // Styles et scripts
+        $this->loader->add_action('wp_enqueue_scripts', $plugin_public, 'enqueue_styles');
+        $this->loader->add_action('wp_enqueue_scripts', $plugin_public, 'enqueue_scripts');
+        
+        // Shortcodes
+        $this->loader->add_shortcode('suno_playlist', $plugin_shortcodes, 'render_playlist');
+        $this->loader->add_shortcode('suno_player', $plugin_shortcodes, 'render_player');
+        $this->loader->add_shortcode('suno_upload_form', $plugin_shortcodes, 'render_upload_form');
+        $this->loader->add_shortcode('suno_gallery', $plugin_shortcodes, 'render_gallery');
+        
+        // Ajax handlers
+        $this->loader->add_action('wp_ajax_suno_upload_track', $plugin_ajax, 'handle_track_upload');
+        $this->loader->add_action('wp_ajax_nopriv_suno_upload_track', $plugin_ajax, 'handle_track_upload');
+        $this->loader->add_action('wp_ajax_suno_delete_track', $plugin_ajax, 'handle_track_delete');
+        $this->loader->add_action('wp_ajax_suno_get_playlist', $plugin_ajax, 'get_playlist_data');
+        $this->loader->add_action('wp_ajax_nopriv_suno_get_playlist', $plugin_ajax, 'get_playlist_data');
+        $this->loader->add_action('wp_ajax_suno_update_play_count', $plugin_ajax, 'update_play_count');
+        $this->loader->add_action('wp_ajax_nopriv_suno_update_play_count', $plugin_ajax, 'update_play_count');
     }
     
     /**
-     * Enregistre les shortcodes
+     * Exécuter le plugin
      */
-    private function register_shortcodes() {
-        $shortcodes = new Suno_Shortcodes($this->upload_url);
-        
-        add_shortcode('suno_playlist', array($shortcodes, 'render_playlist'));
-        add_shortcode('suno_upload_form', array($shortcodes, 'render_upload_form'));
-        add_shortcode('suno_player', array($shortcodes, 'render_single_player'));
+    public function run() {
+        $this->loader->run();
     }
     
     /**
@@ -108,17 +104,26 @@ class SunoMusicPlayerDirect {
      */
     public static function activate() {
         require_once SUNO_PLAYER_PATH . 'includes/class-suno-database.php';
-        Suno_Database::create_tables();
+        SunoDatabase::create_tables();
         
-        // Options par défaut
-        add_option('suno_player_settings', array(
-            'allow_downloads' => true,
-            'show_playlist' => true,
-            'autoplay' => false,
-            'loop' => false,
-            'primary_color' => '#6366f1',
-            'max_file_size' => 50
-        ));
+        // Créer le dossier d'upload
+        $upload_dir = wp_upload_dir();
+        $suno_dir = $upload_dir['basedir'] . '/suno-music';
+        
+        if (!file_exists($suno_dir)) {
+            wp_mkdir_p($suno_dir);
+            
+            // Créer .htaccess pour la sécurité
+            $htaccess = $suno_dir . '/.htaccess';
+            $content = "Options -Indexes\nAddType audio/mpeg .mp3\nAddType audio/mp4 .m4a\nAddType audio/ogg .ogg\n";
+            file_put_contents($htaccess, $content);
+        }
+        
+        // Ajouter les capacités
+        $role = get_role('administrator');
+        $role->add_cap('manage_suno_music');
+        $role->add_cap('upload_suno_tracks');
+        $role->add_cap('delete_suno_tracks');
         
         // Flush rewrite rules
         flush_rewrite_rules();
@@ -128,17 +133,17 @@ class SunoMusicPlayerDirect {
      * Désactivation du plugin
      */
     public static function deactivate() {
+        // Flush rewrite rules
         flush_rewrite_rules();
     }
     
     /**
-     * Accesseurs
+     * Obtenir l'instance unique
      */
-    public function get_upload_dir() {
-        return $this->upload_dir;
-    }
-    
-    public function get_upload_url() {
-        return $this->upload_url;
+    public static function get_instance() {
+        if (null === self::$instance) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
 }

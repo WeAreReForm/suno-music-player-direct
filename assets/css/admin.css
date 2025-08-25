@@ -1,0 +1,196 @@
+/**
+ * Styles admin Suno Music Player
+ */
+
+/* Modal */
+.suno-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.suno-modal {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow: auto;
+}
+
+.suno-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.suno-modal-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.suno-modal-close {
+    background: none;
+    border: none;
+    font-size: 30px;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+}
+
+.suno-modal-close:hover {
+    color: #000;
+}
+
+.suno-modal-content {
+    padding: 20px;
+}
+
+/* Formulaire */
+.form-field {
+    margin-bottom: 15px;
+}
+
+.form-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.form-field input[type="text"],
+.form-field input[type="file"],
+.form-field select,
+.form-field textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.form-field textarea {
+    resize: vertical;
+}
+
+.form-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* Progress bar */
+.suno-upload-progress {
+    text-align: center;
+    padding: 20px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 30px;
+    background: #f0f0f0;
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4CAF50, #45a049);
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    color: #666;
+    margin: 10px 0;
+}
+
+/* Statistiques */
+.suno-stats-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.suno-stat-box {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.suno-stat-box h3 {
+    margin: 0 0 10px 0;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.suno-stat-number {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #2271b1;
+    margin: 0;
+}
+
+/* Top tracks */
+.suno-top-tracks {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.suno-top-tracks h2 {
+    margin-top: 0;
+}
+
+.suno-top-tracks ol {
+    line-height: 2;
+}
+
+/* Table améliorée */
+.suno-admin-tracks {
+    margin-top: 20px;
+}
+
+.suno-admin-tracks table {
+    background: #fff;
+}
+
+.suno-admin-tracks .button-small {
+    margin-right: 5px;
+}
+
+/* Boutons */
+.page-title-action {
+    margin-left: 10px !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .suno-modal {
+        width: 95%;
+        margin: 10px;
+    }
+    
+    .suno-stats-overview {
+        grid-template-columns: 1fr;
+    }
+}
